@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Cài đặt · Exchange Flow Monitor{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div class="panel-header">
+    <h2>Cài đặt ngưỡng cảnh báo</h2>
+  </div>
+
+  <div id="save-banner" class="save-banner" hidden></div>
+
+  <form id="settings-form" class="settings-form">
+    <div class="form-row">
+      <label for="watchlist">Watchlist — chỉ quét đúng các coin này (để trống = quét toàn thị trường)</label>
+      <textarea id="watchlist" name="watchlist" rows="3" placeholder="VD: bitcoin, ethereum, power-protocol" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <span class="hint">Nhập <strong>ID token</strong> (không phải mã ticker), cách nhau bởi dấu phẩy. Lấy ID chính xác từ cột "Token" trên Dashboard (phần chữ nhỏ màu xám cạnh mã, VD "power-protocol", "bitcoin"). Khi có watchlist, các ngưỡng "Loại trừ Top N"/"Market Cap" bên dưới sẽ <strong>không áp dụng</strong> — bot luôn quét đúng danh sách bạn chọn dù coin đó lớn hay nhỏ.</span>
+    </div>
+
+    <div class="form-row">
+      <label for="timeframe">Khung thời gian xét dòng tiền</label>
+      <select id="timeframe" name="timeframe">
+        <option value="1h">1 giờ</option>
+        <option value="6h">6 giờ</option>
+        <option value="12h">12 giờ</option>
+        <option value="24h">24 giờ</option>
+        <option value="7d">7 ngày</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label for="exclude_top_rank">Loại trừ token nằm trong Top N theo Market Cap</label>
+      <input type="number" id="exclude_top_rank" name="exclude_top_rank" min="0" step="10" />
+      <span class="hint"><strong>Khuyến nghị dùng cách này.</strong> Tự động lấy market cap thật của coin đứng đúng hạng N từ CoinGecko (miễn phí, cập nhật mỗi giờ) làm ngưỡng loại trừ — luôn chính xác theo thị trường hiện tại. VD nhập 100 = chỉ quét token ngoài top 100. Nhập 0 để tắt, dùng ngưỡng thủ công bên dưới thay thế.</span>
+    </div>
+
+    <div class="form-row">
+      <label for="max_market_cap">Ngưỡng Market Cap thủ công (USD) — dự phòng</label>
+      <input type="number" id="max_market_cap" name="max_market_cap" min="0" step="100000000" />
+      <span class="hint">Chỉ áp dụng khi ô "Top N" ở trên = 0, hoặc khi không lấy được dữ liệu từ CoinGecko (mất mạng...).</span>
+    </div>
+
+    <div class="form-row">
+      <label for="min_surge_ratio">Ngưỡng tăng đột biến so với kỳ trước (%)</label>
+      <input type="number" id="min_surge_ratio" name="min_surge_ratio_pct" min="0" step="5" />
+      <span class="hint"><strong>Điều kiện chính.</strong> VD 50% nghĩa là dòng tiền phải tăng ≥ 50% so với cùng khung giờ kỳ trước mới bị cảnh báo — tránh việc BTC/ETH/USDT bị báo liên tục chỉ vì bản thân chúng vốn có dòng tiền lớn.</span>
+    </div>
+
+    <div class="form-row">
+      <label for="min_usd_threshold">Ngưỡng USD dự phòng (khi không có dữ liệu kỳ trước)</label>
+      <input type="number" id="min_usd_threshold" name="min_usd_threshold" min="0" step="1000" />
+      <span class="hint">Áp dụng cho token mới xuất hiện, chưa có dữ liệu kỳ trước để so sánh.</span>
+    </div>
+
+    <div class="form-row">
+      <label for="min_mcap_ratio">Ngưỡng tỷ lệ so với Market Cap (%) — dự phòng</label>
+      <input type="number" id="min_mcap_ratio" name="min_mcap_ratio_pct" min="0" step="0.1" />
+      <span class="hint">Cũng chỉ áp dụng khi không có dữ liệu kỳ trước — bắt token nhỏ mới xuất hiện.</span>
+    </div>
+
+    <div class="form-row">
+      <label for="top_n">Số token top đầu quét mỗi lần (theo inflow và theo outflow)</label>
+      <input type="number" id="top_n" name="top_n" min="1" max="500" step="1" />
+    </div>
+
+    <div class="form-row">
+      <label for="poll_interval_seconds">Tần suất quét (giây)</label>
+      <input type="number" id="poll_interval_seconds" name="poll_interval_seconds" min="30" step="30" />
+      <span class="hint">Tối thiểu 30 giây để tránh vượt rate-limit của Arkham API.</span>
+    </div>
+
+    <div class="form-row">
+      <label for="alert_cooldown_seconds">Cooldown chống spam (giây)</label>
+      <input type="number" id="alert_cooldown_seconds" name="alert_cooldown_seconds" min="0" step="60" />
+      <span class="hint">Không cảnh báo lại cùng 1 token trong khoảng thời gian này.</span>
+    </div>
+
+    <div class="form-row form-row-checkbox">
+      <label class="checkbox-label">
+        <input type="checkbox" id="telegram_enabled" name="telegram_enabled" />
+        Gửi cảnh báo qua Telegram
+      </label>
+      <span class="hint" id="telegram-hint"></span>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Lưu cài đặt</button>
+    </div>
+  </form>
+
+  <div class="config-status" id="config-status"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  ExchangeFlowApp.initSettings();
+</script>
+{% endblock %}

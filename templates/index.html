@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Exchange Flow Monitor{% endblock %}
+
+{% block content %}
+<div class="stat-row" id="stat-row">
+  <div class="stat-card">
+    <div class="stat-label">Tổng cảnh báo</div>
+    <div class="stat-value" id="stat-total">—</div>
+  </div>
+  <div class="stat-card stat-red">
+    <div class="stat-label">🔴 Nạp vào sàn</div>
+    <div class="stat-value" id="stat-inflow">—</div>
+  </div>
+  <div class="stat-card stat-green">
+    <div class="stat-label">🟢 Rút khỏi sàn</div>
+    <div class="stat-value" id="stat-outflow">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Lần quét gần nhất</div>
+    <div class="stat-value" id="stat-lastscan">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label" id="stat-mcap-cutoff-label">Đang loại trừ Market Cap ≥</div>
+    <div class="stat-value" id="stat-mcap-cutoff" style="font-size:16px">—</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <h2>Cảnh báo gần đây</h2>
+    <div class="panel-actions">
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">Tất cả</button>
+        <button class="filter-btn" data-filter="inflow">🔴 Vào sàn</button>
+        <button class="filter-btn" data-filter="outflow">🟢 Ra sàn</button>
+      </div>
+      <button class="btn btn-primary" id="scan-now-btn">Quét ngay</button>
+    </div>
+  </div>
+
+  <div id="error-banner" class="error-banner" hidden></div>
+
+  <table class="alerts-table">
+    <thead>
+      <tr>
+        <th>Thời gian</th>
+        <th>Token</th>
+        <th>Chiều</th>
+        <th>Giá trị (USD)</th>
+        <th>So với kỳ trước</th>
+        <th>% Market Cap</th>
+        <th>Khung giờ</th>
+      </tr>
+    </thead>
+    <tbody id="alerts-body">
+      <tr><td colspan="7" class="empty-row">Đang tải dữ liệu...</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  ExchangeFlowApp.initDashboard();
+</script>
+{% endblock %}
