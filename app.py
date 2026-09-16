@@ -22,6 +22,15 @@ log = logging.getLogger("arkham-web")
 
 app = Flask(__name__)
 
+# Version cache-bust cho static file (CSS/JS) - doi moi lan restart app, giup
+# trinh duyet tu tai lai file moi ma khong can nguoi dung Ctrl+Shift+R thu cong.
+STATIC_VERSION = str(int(time.time()))
+
+
+@app.context_processor
+def inject_static_version():
+    return {"static_version": STATIC_VERSION}
+
 # ---------------------------------------------------------------------------
 # State dung chung giua background thread va Flask request thread
 # ---------------------------------------------------------------------------

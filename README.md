@@ -76,6 +76,18 @@ gunicorn -w 1 -b 0.0.0.0:5000 app:app
 Muốn public ra internet để xem từ điện thoại: dùng `ngrok http 5000` hoặc
 deploy lên VPS/Render/Railway (nhớ đặt biến môi trường thay vì commit `.env`).
 
+## 4C. Cập nhật lên bản mới nhất (Windows, chỉ 1 lệnh)
+
+Thay vì tự làm nhiều bước (git pull, activate venv, cài lại thư viện, tắt
+tiến trình cũ, chạy lại), dùng script có sẵn:
+
+```powershell
+.\update.ps1
+```
+
+Script này tự động làm toàn bộ các bước trên rồi khởi động lại app. Trình
+duyệt cũng tự tải lại đúng CSS/JS mới (không cần Ctrl+Shift+R nữa).
+
 ## 4B. Chạy CLI (không cần trình duyệt)
 
 ```bash
