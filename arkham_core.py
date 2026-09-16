@@ -455,15 +455,18 @@ def detect_spikes(debug: bool = False) -> list[FlowAlert]:
         watch_symbols = {w.upper() for w in watchlist}  # phong khi nguoi dung go dung ticker
 
         found = set()
-        for order_by_agg, direction in (("inflowCex", "inflow"), ("outflowCex", "outflow")):
-            rows = fetch_top_flow(order_by_agg, size=WATCHLIST_SCAN_SIZE, debug=debug)
-            for row in rows:
-                token = row.get("token") or {}
-                tid = (token.get("id") or "").lower()
-                tsym = (token.get("symbol") or "").upper()
-                if tid not in watch_ids and tsym not in watch_symbols:
-                    continue
-                found.add(tid or tsym)
+        # Chi can 1 lan goi (sap theo tong volume) thay vi 2 lan rieng
+        # inflow/outflow - giam 50% luong request Arkham. Moi dong tra ve van
+        # co du ca inflowCexVolume va outflowCexVolume nen khong mat du lieu.
+        rows = fetch_top_flow("volume", size=WATCHLIST_SCAN_SIZE, debug=debug)
+        for row in rows:
+            token = row.get("token") or {}
+            tid = (token.get("id") or "").lower()
+            tsym = (token.get("symbol") or "").upper()
+            if tid not in watch_ids and tsym not in watch_symbols:
+                continue
+            found.add(tid or tsym)
+            for direction in ("inflow", "outflow"):
                 alert = parse_token_row(row, direction)
                 if alert and is_spike(alert):
                     spikes.append(alert)
