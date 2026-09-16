@@ -8,10 +8,12 @@ Mo trinh duyet: http://localhost:5000
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
 from collections import deque
+from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
@@ -36,6 +38,7 @@ def inject_static_version():
 # ---------------------------------------------------------------------------
 
 MAX_ALERTS_STORED = 500
+ALERTS_FILE = Path(__file__).parent / "alerts_history.json"
 
 state_lock = threading.Lock()
 alerts_history: deque = deque(maxlen=MAX_ALERTS_STORED)
@@ -50,6 +53,52 @@ status = {
 }
 
 
+def load_alerts_history() -> None:
+    """Doc lai lich su canh bao tu file (neu co) khi khoi dong app."""
+    if not ALERTS_FILE.exists():
+        return
+    try:
+        data = json.loads(ALERTS_FILE.read_text())
+        with state_lock:
+            alerts_history.extend(data[:MAX_ALERTS_STORED])
+        log.info("Da nap lai %d canh bao tu lich su cu (%s)", len(alerts_history), ALERTS_FILE.name)
+    except (json.JSONDecodeError, OSError) as e:
+        log.warning("Khong doc duoc lich su canh bao cu: %s", e)
+
+
+def save_alerts_history() -> None:
+    """Luu lich su canh bao ra file de giu lai qua cac lan restart/deploy."""
+    try:
+        with state_lock:
+            data = list(alerts_history)
+        ALERTS_FILE.write_text(json.dumps(data))
+    except OSError as e:
+        log.warning("Khong luu duoc lich su canh bao: %s", e)
+
+
+def record_spikes(spikes: list, now: float) -> None:
+    """Xu ly danh sach spike moi phat hien: chong spam, luu lich su, gui Telegram."""
+    changed = False
+    for alert in spikes:
+        key = f"{alert.symbol}:{alert.direction}"
+        with state_lock:
+            last_time = last_alert_time.get(key, 0)
+        if now - last_time < core.config.alert_cooldown_seconds:
+            continue
+
+        log.info("SPIKE: %s %s $%.0f", alert.symbol, alert.direction, alert.usd_value)
+
+        with state_lock:
+            alerts_history.appendleft(alert.to_dict())
+            last_alert_time[key] = now
+        changed = True
+
+        core.send_telegram_message(core.format_alert_message(alert))
+
+    if changed:
+        save_alerts_history()
+
+
 def worker_loop() -> None:
     while True:
         try:
@@ -59,20 +108,7 @@ def worker_loop() -> None:
             with state_lock:
                 status["last_error"] = None
 
-            for alert in spikes:
-                key = f"{alert.symbol}:{alert.direction}"
-                with state_lock:
-                    last_time = last_alert_time.get(key, 0)
-                if now - last_time < core.config.alert_cooldown_seconds:
-                    continue
-
-                log.info("SPIKE: %s %s $%.0f", alert.symbol, alert.direction, alert.usd_value)
-
-                with state_lock:
-                    alerts_history.appendleft(alert.to_dict())
-                    last_alert_time[key] = now
-
-                core.send_telegram_message(core.format_alert_message(alert))
+            record_spikes(spikes, now)
 
             with state_lock:
                 status["scans_done"] += 1
@@ -172,16 +208,7 @@ def worker_loop_once() -> None:
     try:
         spikes = core.detect_spikes()
         now = time.time()
-        for alert in spikes:
-            key = f"{alert.symbol}:{alert.direction}"
-            with state_lock:
-                last_time = last_alert_time.get(key, 0)
-            if now - last_time < core.config.alert_cooldown_seconds:
-                continue
-            with state_lock:
-                alerts_history.appendleft(alert.to_dict())
-                last_alert_time[key] = now
-            core.send_telegram_message(core.format_alert_message(alert))
+        record_spikes(spikes, now)
         with state_lock:
             status["scans_done"] += 1
             status["last_scan_at"] = now
@@ -203,5 +230,6 @@ def start_background_worker() -> None:
 
 
 if __name__ == "__main__":
+    load_alerts_history()
     start_background_worker()
     app.run(host="0.0.0.0", port=5000, debug=False)
