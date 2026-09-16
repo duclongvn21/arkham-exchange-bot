@@ -254,3 +254,40 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px;
   padding: 30px 20px 40px;
 }
+
+/* Alert row clickable */
+.alerts-table tbody tr { cursor: pointer; }
+
+/* Coin detail modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+}
+.modal-overlay[hidden] { display: none; }
+.modal-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%; max-width: 720px;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { margin: 0; font-size: 16px; }
+.modal-close {
+  background: none; border: none; color: var(--text-dim);
+  font-size: 22px; cursor: pointer; line-height: 1; padding: 4px 8px;
+}
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 20px; }
+.coin-detail-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.coin-detail-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+.coin-detail-item .cdi-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.coin-detail-item .cdi-value { font-size: 15px; font-weight: 700; }
+#coin-candlestick-chart { display: block; background: var(--bg-elevated); border-radius: 8px; }

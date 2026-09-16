@@ -122,6 +122,19 @@ def api_alerts():
     return jsonify(items[:limit])
 
 
+@app.route("/api/token-ohlc")
+def api_token_ohlc():
+    coin_id = request.args.get("id", "").strip()
+    days = request.args.get("days", "7")
+    if not coin_id:
+        return jsonify([])
+    try:
+        days_int = max(1, min(365, int(days)))
+    except ValueError:
+        days_int = 7
+    return jsonify(core.fetch_token_ohlc(coin_id, days_int))
+
+
 @app.route("/api/search-token")
 def api_search_token():
     q = request.args.get("q", "").strip()

@@ -57,6 +57,20 @@
     </tbody>
   </table>
 </div>
+
+<div class="modal-overlay" id="coin-modal-overlay" hidden>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="coin-modal-title">—</h3>
+      <button type="button" class="modal-close" id="coin-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="coin-detail-row" id="coin-modal-info"></div>
+      <div id="coin-chart-status" class="hint" style="padding: 8px 0;"></div>
+      <svg id="coin-candlestick-chart" width="100%" height="280" viewBox="0 0 900 280" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

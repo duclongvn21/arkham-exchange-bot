@@ -211,6 +211,25 @@ def fetch_market_cap_at_rank(rank: int) -> float | None:
     return None
 
 
+def fetch_token_ohlc(coin_id: str, days: int = 7) -> list:
+    """
+    Lay du lieu nen OHLC (Open/High/Low/Close) tu CoinGecko (mien phi, khong
+    can key) de ve bieu do nen gia cho 1 coin cu the. Tra ve list cac
+    [timestamp_ms, open, high, low, close].
+    """
+    try:
+        resp = requests.get(
+            f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc",
+            params={"vs_currency": "usd", "days": days},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException as e:
+        log.warning("Khong lay duoc OHLC cho '%s': %s", coin_id, e)
+        return []
+
+
 _symbol_resolve_cache: dict[str, str] = {}
 
 

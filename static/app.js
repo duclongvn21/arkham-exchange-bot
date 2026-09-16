@@ -55,7 +55,7 @@ const ExchangeFlowApp = (() => {
       return;
     }
 
-    body.innerHTML = filtered.map((a) => {
+    body.innerHTML = filtered.map((a, idx) => {
       const badgeClass = a.direction === "inflow" ? "badge-inflow" : "badge-outflow";
       const badgeIcon = a.direction === "inflow" ? "🔴" : "🟢";
       const badgeText = a.direction === "inflow" ? "Vào sàn" : "Ra sàn";
@@ -64,7 +64,7 @@ const ExchangeFlowApp = (() => {
         ? `<span style="color:var(--red)">+${(a.surge_ratio * 100).toFixed(0)}%</span> so kỳ trước`
         : "(token mới, không có kỳ trước)";
       return `
-        <tr>
+        <tr data-idx="${idx}">
           <td title="${fmtTime(a.detected_at)}">${fmtRelative(a.detected_at)}</td>
           <td><strong>${escapeHtml(a.symbol)}</strong> <span style="color:var(--text-dim)">${escapeHtml(a.name || "")}</span></td>
           <td><span class="badge ${badgeClass}">${badgeIcon} ${badgeText}</span></td>
@@ -75,12 +75,121 @@ const ExchangeFlowApp = (() => {
         </tr>
       `;
     }).join("");
+
+    body.querySelectorAll("tr[data-idx]").forEach((row) => {
+      row.addEventListener("click", () => openCoinModal(filtered[parseInt(row.dataset.idx, 10)]));
+    });
   }
 
   function escapeHtml(s) {
     const div = document.createElement("div");
     div.textContent = s == null ? "" : String(s);
     return div.innerHTML;
+  }
+
+  // -------------------------------------------------------------------
+  // Coin detail modal + bieu do nen (ve SVG thuan, khong can thu vien ngoai)
+  // -------------------------------------------------------------------
+
+  let coinModalSeq = 0; // chong race-condition khi bam nhanh nhieu coin lien tiep
+
+  function fmtUsdCompact(v) {
+    if (v == null) return "—";
+    const n = Number(v);
+    if (n >= 1) return "$" + n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 0 : 4 });
+    return "$" + n.toPrecision(4);
+  }
+
+  function renderCandlestickSVG(candles) {
+    const svg = document.getElementById("coin-candlestick-chart");
+    const W = 900, H = 280, padY = 20;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.innerHTML = "";
+
+    if (!candles || candles.length === 0) {
+      svg.innerHTML = `<text x="${W/2}" y="${H/2}" fill="#8b92a3" font-size="13" text-anchor="middle">Không có dữ liệu biểu đồ</text>`;
+      return;
+    }
+
+    const highs = candles.map((c) => c[2]);
+    const lows = candles.map((c) => c[3]);
+    let minP = Math.min(...lows), maxP = Math.max(...highs);
+    if (minP === maxP) { minP *= 0.98; maxP *= 1.02; }
+    const scaleY = (p) => H - padY - ((p - minP) / (maxP - minP)) * (H - padY * 2);
+
+    const n = candles.length;
+    const slot = W / n;
+    const bodyW = Math.max(1, slot * 0.6);
+
+    let svgContent = "";
+    candles.forEach((c, i) => {
+      const [, open, high, low, close] = c;
+      const x = i * slot + slot / 2;
+      const isUp = close >= open;
+      const color = isUp ? "#4caf7d" : "#ef5350";
+      const yHigh = scaleY(high), yLow = scaleY(low);
+      const yOpen = scaleY(open), yClose = scaleY(close);
+      const yTop = Math.min(yOpen, yClose);
+      const bodyH = Math.max(1, Math.abs(yClose - yOpen));
+      svgContent += `<line x1="${x}" y1="${yHigh}" x2="${x}" y2="${yLow}" stroke="${color}" stroke-width="1" />`;
+      svgContent += `<rect x="${x - bodyW/2}" y="${yTop}" width="${bodyW}" height="${bodyH}" fill="${color}" />`;
+    });
+    svg.innerHTML = svgContent;
+  }
+
+  function renderCoinInfo(alert) {
+    const el = document.getElementById("coin-modal-info");
+    const directionLabel = alert.direction === "inflow" ? "🔴 Nạp vào sàn" : "🟢 Rút khỏi sàn";
+    const surgeText = alert.surge_ratio != null ? `+${(alert.surge_ratio * 100).toFixed(0)}%` : "—";
+    const prevText = alert.previous_usd_value != null ? fmtUsd(alert.previous_usd_value) : "(không có dữ liệu)";
+    el.innerHTML = `
+      <div class="coin-detail-item"><div class="cdi-label">Chiều</div><div class="cdi-value">${directionLabel}</div></div>
+      <div class="coin-detail-item"><div class="cdi-label">Giá trị hiện tại</div><div class="cdi-value">${fmtUsd(alert.usd_value)}</div></div>
+      <div class="coin-detail-item"><div class="cdi-label">Kỳ trước</div><div class="cdi-value">${prevText}</div></div>
+      <div class="coin-detail-item"><div class="cdi-label">Thay đổi</div><div class="cdi-value">${surgeText}</div></div>
+    `;
+  }
+
+  async function openCoinModal(alert) {
+    const overlay = document.getElementById("coin-modal-overlay");
+    const title = document.getElementById("coin-modal-title");
+    const statusEl = document.getElementById("coin-chart-status");
+
+    title.textContent = `${alert.symbol} · ${alert.name || ""}`;
+    renderCoinInfo(alert);
+    renderCandlestickSVG([]);
+    statusEl.textContent = "Đang tải biểu đồ giá...";
+    overlay.hidden = false;
+
+    const mySeq = ++coinModalSeq;
+    try {
+      // alert.name la CoinGecko-style id (VD "bitcoin", "lobster-2") Arkham tra ve
+      const candles = await fetchJSON(`/api/token-ohlc?id=${encodeURIComponent(alert.name)}&days=7`);
+      if (mySeq !== coinModalSeq) return; // da mo coin khac trong luc cho
+      if (!candles || candles.length === 0) {
+        statusEl.textContent = "Không lấy được dữ liệu biểu đồ giá cho token này (CoinGecko không có dữ liệu hoặc ID không khớp).";
+      } else {
+        statusEl.textContent = "";
+      }
+      renderCandlestickSVG(candles);
+    } catch (e) {
+      if (mySeq !== coinModalSeq) return;
+      statusEl.textContent = "Lỗi tải biểu đồ: " + e.message;
+    }
+  }
+
+  function closeCoinModal() {
+    document.getElementById("coin-modal-overlay").hidden = true;
+  }
+
+  function initCoinModal() {
+    document.getElementById("coin-modal-close").addEventListener("click", closeCoinModal);
+    document.getElementById("coin-modal-overlay").addEventListener("click", (e) => {
+      if (e.target.id === "coin-modal-overlay") closeCoinModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeCoinModal();
+    });
   }
 
   async function refreshDashboard() {
@@ -131,6 +240,7 @@ const ExchangeFlowApp = (() => {
   function initDashboard() {
     refreshDashboard();
     setInterval(refreshDashboard, REFRESH_MS);
+    initCoinModal();
 
     document.querySelectorAll(".filter-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
