@@ -367,8 +367,46 @@ def fetch_token_volume(token_id: str, debug: bool = False) -> dict | None:
         return None
 
     if debug:
-        log.info("RAW /token/volume/%s:\n%s", token_id, json.dumps(data, indent=2)[:2000])
+        if isinstance(data, list):
+            log.info(
+                "RAW /token/volume/%s: list co %d phan tu. 2 dau: %s | 2 cuoi: %s",
+                token_id, len(data),
+                json.dumps(data[:2], indent=2), json.dumps(data[-2:], indent=2),
+            )
+        else:
+            log.info("RAW /token/volume/%s:\n%s", token_id, json.dumps(data, indent=2)[:2000])
     return data
+
+
+def parse_token_volume_series(data, token_id: str, direction: str) -> FlowAlert | None:
+    """
+    /token/volume/{id} tra ve LIST cac bucket theo thoi gian (do granularity
+    quy dinh), moi bucket dang {"inValue":..,"outValue":..,"inUSD":..,
+    "outUSD":..,"time":...}. Gia dinh sap xep tang dan theo thoi gian (bucket
+    moi nhat o CUOI danh sach) - lay bucket cuoi lam "current", bucket ngay
+    truoc lam "previous" de tinh ty le tang dot bien.
+    """
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+
+    current = data[-1]
+    previous = data[-2] if len(data) >= 2 else None
+
+    field = "inUSD" if direction == "inflow" else "outUSD"
+    usd_value = current.get(field)
+    if usd_value is None:
+        return None
+    prev_value = previous.get(field) if previous else None
+
+    return FlowAlert(
+        symbol=token_id.upper(),
+        name=token_id,
+        direction=direction,
+        usd_value=abs(float(usd_value)),
+        previous_usd_value=float(prev_value) if prev_value is not None else None,
+        market_cap=None,  # endpoint nay khong tra ve market cap
+        timeframe=config.timeframe,
+    )
 
 
 def fetch_top_flow(order_by_agg: str, size: int | None = None, debug: bool = False) -> list:
@@ -477,11 +515,9 @@ def detect_spikes(debug: bool = False) -> list[FlowAlert]:
                             "hoac Arkham chua co du lieu cho token nay).", token_id)
                 continue
             for direction in ("inflow", "outflow"):
-                alert = parse_token_row(data, direction)
+                alert = parse_token_volume_series(data, token_id, direction)
                 if alert is None:
                     continue
-                if not alert.symbol or alert.symbol == "?":
-                    alert.symbol = token_id.upper()
                 if is_spike(alert):
                     spikes.append(alert)
         return spikes
