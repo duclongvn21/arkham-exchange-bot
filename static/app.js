@@ -202,6 +202,8 @@ const ExchangeFlowApp = (() => {
     saveWatchlist();
   }
 
+  let watchlistSearchSeq = 0; // chong race-condition khi go nhanh (ket qua cu ve sau ket qua moi)
+
   async function runWatchlistSearch() {
     const input = document.getElementById("watchlist-search-input");
     const resultsEl = document.getElementById("watchlist-search-results");
@@ -210,14 +212,17 @@ const ExchangeFlowApp = (() => {
       resultsEl.hidden = true;
       return;
     }
+    const mySeq = ++watchlistSearchSeq;
     let results;
     try {
       results = await fetchJSON(`/api/search-token?q=${encodeURIComponent(query)}`);
     } catch (e) {
+      if (mySeq !== watchlistSearchSeq) return; // co request moi hon da chay sau, bo qua ket qua cu nay
       resultsEl.hidden = false;
       resultsEl.innerHTML = `<div class="watchlist-result-empty">Lỗi tìm kiếm: ${escapeHtml(e.message)}</div>`;
       return;
     }
+    if (mySeq !== watchlistSearchSeq) return; // co request moi hon da chay sau, bo qua ket qua cu nay
     resultsEl.hidden = false;
     if (results.length === 0) {
       resultsEl.innerHTML = '<div class="watchlist-result-empty">Không tìm thấy coin nào khớp.</div>';
@@ -247,6 +252,18 @@ const ExchangeFlowApp = (() => {
         e.preventDefault();
         runWatchlistSearch();
       }
+    });
+
+    // Tu dong goi y khi dang go (debounce 400ms, tu 2 ky tu tro len)
+    let debounceTimer = null;
+    input.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      const resultsEl = document.getElementById("watchlist-search-results");
+      if (input.value.trim().length < 2) {
+        if (resultsEl) resultsEl.hidden = true;
+        return;
+      }
+      debounceTimer = setTimeout(runWatchlistSearch, 400);
     });
     document.addEventListener("click", (e) => {
       const resultsEl = document.getElementById("watchlist-search-results");
