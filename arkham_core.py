@@ -347,7 +347,20 @@ def get_watchlist() -> list[str]:
     return [t.strip() for t in config.watchlist.split(",") if t.strip()]
 
 
-WATCHLIST_SCAN_SIZE = 300  # size lon hon khi quet watchlist, tang co hoi tim thay dung token
+def fetch_token_volume(token_id: str, debug: bool = False) -> dict | None:
+    """
+    Tra cuu TRUC TIEP 1 token theo ID qua /token/volume/{id} - khong qua bang
+    xep hang nen KHONG bi gioi han "chi thay neu lot top N". Dung cho che do
+    Watchlist de dam bao luon tim thay du lieu, ke ca token volume rat thap.
+    """
+    try:
+        data = arkham_get(f"/token/volume/{token_id}", {"timeframe": config.timeframe})
+    except requests.HTTPError:
+        return None
+
+    if debug:
+        log.info("RAW /token/volume/%s:\n%s", token_id, json.dumps(data, indent=2)[:2000])
+    return data
 
 
 def fetch_top_flow(order_by_agg: str, size: int | None = None, debug: bool = False) -> list:
@@ -443,41 +456,26 @@ def detect_spikes(debug: bool = False) -> list[FlowAlert]:
     watchlist = get_watchlist()
 
     if watchlist:
-        # CHE DO WATCHLIST: chi quet dung cac token nguoi dung chi dinh.
-        # Tu dong doi ticker (VD "BTC") sang ID chuan Arkham can (VD "bitcoin")
-        # qua CoinGecko - nguoi dung khong can tu tra ID.
-        # Arkham /token/top KHONG ho tro loc server-side theo token cu the (da
-        # test thuc te xac nhan), nen phai quet mot danh sach lon (top 300 ca
-        # 2 chieu) roi TU LOC PHIA CODE theo dung watchlist - khong ap dung
-        # bo loc market cap vi nguoi dung da chu dong chon coin nay.
+        # CHE DO WATCHLIST: tra cuu TRUC TIEP tung token qua /token/volume/{id}
+        # (khong qua bang xep hang top-N) - dam bao luon tim thay du lieu, ke
+        # ca token volume rat thap. Tu dong doi ticker (VD "BTC") sang ID
+        # chuan Arkham can (VD "bitcoin") qua CoinGecko. KHONG ap dung bo loc
+        # market cap vi nguoi dung da chu dong chon coin nay.
         resolved_ids = resolve_watchlist_ids()
-        watch_ids = {w.lower() for w in resolved_ids}
-        watch_symbols = {w.upper() for w in watchlist}  # phong khi nguoi dung go dung ticker
-
-        found = set()
-        # Chi can 1 lan goi (sap theo tong volume) thay vi 2 lan rieng
-        # inflow/outflow - giam 50% luong request Arkham. Moi dong tra ve van
-        # co du ca inflowCexVolume va outflowCexVolume nen khong mat du lieu.
-        rows = fetch_top_flow("volume", size=WATCHLIST_SCAN_SIZE, debug=debug)
-        for row in rows:
-            token = row.get("token") or {}
-            tid = (token.get("id") or "").lower()
-            tsym = (token.get("symbol") or "").upper()
-            if tid not in watch_ids and tsym not in watch_symbols:
+        for token_id in resolved_ids:
+            data = fetch_token_volume(token_id, debug=debug)
+            if not data:
+                log.warning("Watchlist: khong lay duoc du lieu cho '%s' (sai ID/ticker, "
+                            "hoac Arkham chua co du lieu cho token nay).", token_id)
                 continue
-            found.add(tid or tsym)
             for direction in ("inflow", "outflow"):
-                alert = parse_token_row(row, direction)
-                if alert and is_spike(alert):
+                alert = parse_token_row(data, direction)
+                if alert is None:
+                    continue
+                if not alert.symbol or alert.symbol == "?":
+                    alert.symbol = token_id.upper()
+                if is_spike(alert):
                     spikes.append(alert)
-
-        missing = watch_ids - found
-        if missing:
-            log.warning(
-                "Watchlist: khong thay du lieu cho %s trong top %d ket qua ca 2 chieu "
-                "(volume qua thap trong khung gio nay, hoac sai ID/ticker).",
-                sorted(missing), WATCHLIST_SCAN_SIZE,
-            )
         return spikes
 
     # CHE DO MAC DINH: quet toan bo thi truong, loai coin top theo market cap
