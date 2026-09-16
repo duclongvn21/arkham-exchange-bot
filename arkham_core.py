@@ -353,8 +353,16 @@ def fetch_token_volume(token_id: str, debug: bool = False) -> dict | None:
     xep hang nen KHONG bi gioi han "chi thay neu lot top N". Dung cho che do
     Watchlist de dam bao luon tim thay du lieu, ke ca token volume rat thap.
     """
+    # "granularity" la tham so bat buoc rieng, khac "timeframe" - quy doi
+    # tuong ung tu khung gio dang chon.
+    granularity_map = {"1h": "hour", "6h": "hour", "12h": "hour", "24h": "day", "7d": "day"}
+    granularity = granularity_map.get(config.timeframe, "hour")
+
     try:
-        data = arkham_get(f"/token/volume/{token_id}", {"timeframe": config.timeframe})
+        data = arkham_get(
+            f"/token/volume/{token_id}",
+            {"timeframe": config.timeframe, "granularity": granularity},
+        )
     except requests.HTTPError:
         return None
 
