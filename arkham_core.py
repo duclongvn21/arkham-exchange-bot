@@ -382,15 +382,23 @@ def parse_token_volume_series(data, token_id: str, direction: str) -> FlowAlert 
     """
     /token/volume/{id} tra ve LIST cac bucket theo thoi gian (do granularity
     quy dinh), moi bucket dang {"inValue":..,"outValue":..,"inUSD":..,
-    "outUSD":..,"time":...}. Gia dinh sap xep tang dan theo thoi gian (bucket
-    moi nhat o CUOI danh sach) - lay bucket cuoi lam "current", bucket ngay
-    truoc lam "previous" de tinh ty le tang dot bien.
+    "outUSD":..,"time":...}. DA XAC NHAN THUC TE: thu tu tra ve KHONG theo
+    thoi gian (bi xao tron) - phai tu sap xep lai theo "time" truoc khi lay
+    bucket gan nhat lam "current", bucket ngay truoc do lam "previous".
     """
     if not isinstance(data, list) or len(data) == 0:
         return None
 
-    current = data[-1]
-    previous = data[-2] if len(data) >= 2 else None
+    try:
+        sorted_data = sorted(data, key=lambda b: b.get("time") or "")
+    except (TypeError, AttributeError):
+        return None
+
+    current = sorted_data[-1]
+    previous = sorted_data[-2] if len(sorted_data) >= 2 else None
+    if direction == "inflow":  # chi log 1 lan/token (bo qua lap lai cho outflow)
+        log.info("%s: moc gan nhat dang dung = %s (tong %d moc)",
+                  token_id, current.get("time"), len(sorted_data))
 
     field = "inUSD" if direction == "inflow" else "outUSD"
     usd_value = current.get(field)
