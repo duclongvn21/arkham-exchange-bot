@@ -12,8 +12,8 @@
   <form id="settings-form" class="settings-form">
     <div class="form-row">
       <label for="watchlist">Watchlist — chỉ quét đúng các coin này (để trống = quét toàn thị trường)</label>
-      <textarea id="watchlist" name="watchlist" rows="3" placeholder="VD: bitcoin, ethereum, power-protocol" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
-      <span class="hint">Nhập <strong>ID token</strong> (không phải mã ticker), cách nhau bởi dấu phẩy. Lấy ID chính xác từ cột "Token" trên Dashboard (phần chữ nhỏ màu xám cạnh mã, VD "power-protocol", "bitcoin"). Khi có watchlist, các ngưỡng "Loại trừ Top N"/"Market Cap" bên dưới sẽ <strong>không áp dụng</strong> — bot luôn quét đúng danh sách bạn chọn dù coin đó lớn hay nhỏ.</span>
+      <textarea id="watchlist" name="watchlist" rows="3" placeholder="VD: BTC, POWER, AIN" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      <span class="hint">Nhập <strong>mã ticker</strong> (VD "BTC", "POWER") hoặc ID token đầy đủ đều được, cách nhau bởi dấu phẩy — bot tự tra cứu ID chính xác qua CoinGecko. Nếu 1 mã trùng tên với nhiều coin, bot tự ưu tiên coin phổ biến nhất (market cap cao nhất) theo tên đó. Khi có watchlist, các ngưỡng "Loại trừ Top N"/"Market Cap" bên dưới sẽ <strong>không áp dụng</strong> — bot luôn quét đúng danh sách bạn chọn dù coin đó lớn hay nhỏ.</span>
     </div>
 
     <div class="form-row">

@@ -211,6 +211,49 @@ def fetch_market_cap_at_rank(rank: int) -> float | None:
     return None
 
 
+_symbol_resolve_cache: dict[str, str] = {}
+
+
+def resolve_token_id(query: str) -> str:
+    """
+    Nguoi dung go ticker (VD "BTC") hoac da go dung ID (VD "bitcoin") deu duoc.
+    Tra cuu qua CoinGecko Search API (mien phi) de doi ticker -> ID chuan,
+    uu tien coin co market cap rank thap nhat (tuc pho bien nhat) neu trung ten.
+    Ket qua duoc cache lai, chi tra cuu 1 lan cho moi tu khoa.
+    Neu tra cuu that bai (mat mang...) hoac khong tim thay: dung nguyen text
+    goc - van hoat dong binh thuong neu nguoi dung da go dung ID san.
+    """
+    key = query.strip().lower()
+    if not key:
+        return query
+    if key in _symbol_resolve_cache:
+        return _symbol_resolve_cache[key]
+
+    resolved = query.strip()
+    try:
+        resp = requests.get(
+            "https://api.coingecko.com/api/v3/search",
+            params={"query": query},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        coins = resp.json().get("coins", [])
+        if coins:
+            coins.sort(key=lambda c: (c.get("market_cap_rank") is None, c.get("market_cap_rank", 10**9)))
+            resolved = coins[0].get("id", resolved)
+            log.info("Da tra cuu '%s' -> id '%s'", query, resolved)
+    except requests.RequestException as e:
+        log.warning("Khong tra cuu duoc '%s' qua CoinGecko, dung nguyen text goc: %s", query, e)
+
+    _symbol_resolve_cache[key] = resolved
+    return resolved
+
+
+def resolve_watchlist_ids() -> list[str]:
+    """Danh sach ID da duoc tra cuu/chuan hoa tu watchlist nguoi dung nhap."""
+    return [resolve_token_id(t) for t in get_watchlist()]
+
+
 def get_effective_max_market_cap() -> float:
     """
     Neu config.exclude_top_rank > 0: tu dong dung market cap cua coin dung
@@ -356,10 +399,13 @@ def detect_spikes(debug: bool = False) -> list[FlowAlert]:
 
     if watchlist:
         # CHE DO WATCHLIST: chi quet dung cac token nguoi dung chi dinh.
+        # Tu dong doi ticker (VD "BTC") sang ID chuan Arkham can (VD "bitcoin")
+        # qua CoinGecko - nguoi dung khong can tu tra ID.
+        resolved_ids = resolve_watchlist_ids()
         # Chi can 1 lan goi API (khong can sap xep top-N theo tung chieu rieng,
         # vi da loc dung danh sach nay roi) - va KHONG ap dung bo loc market cap,
         # vi nguoi dung da chu dong chon coin nay du no lon hay nho.
-        rows = fetch_top_flow("inflowCex", tokens=watchlist, debug=debug)
+        rows = fetch_top_flow("inflowCex", tokens=resolved_ids, debug=debug)
         for row in rows:
             for direction in ("inflow", "outflow"):
                 alert = parse_token_row(row, direction)
