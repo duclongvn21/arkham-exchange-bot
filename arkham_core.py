@@ -486,19 +486,26 @@ def parse_token_row(row: dict, direction: str) -> FlowAlert | None:
 
 def is_spike(alert: FlowAlert) -> bool:
     """
-    Dinh nghia "dot bien" (khac voi "von dang lon nen dong tien von da lon"):
-    - Neu co du lieu ky truoc: PHAI tang toi thieu min_surge_ratio so voi ky
-      truoc moi tinh la dot bien. Day la dieu kien chinh, giup loai bo viec
-      BTC/ETH/USDT... bi bao lien tuc chi vi ban than no von co volume lon.
-    - Neu KHONG co du lieu ky truoc (token moi xuat hien, previous=0/None):
-      dung nguong USD tuyet doi hoac ty le % market cap lam phuong an du phong.
-    """
-    ratio = alert.surge_ratio
-    if ratio is not None:
-        return ratio >= config.min_surge_ratio
+    Bao khi thoa MOT TRONG CAC dieu kien sau (OR, khong bat buoc ca 2):
+    - Vuot nguong USD tuyet doi (min_usd_threshold) - bat ky giao dich/dong
+      tien lon nao, du khong "dot bien" ve ty le %, van dang chu y.
+    - Tang toi thieu min_surge_ratio so voi ky truoc (dot bien ve ty le %),
+      giup bat duoc ca nhung token nho co dong tien tuyet doi khong lon
+      nhung tang bat thuong.
+    - Ty le so voi market cap (min_mcap_ratio) - bat token nho von hoa thap.
 
+    Luu y: o CHE DO MAC DINH (quet toan thi truong), BTC/ETH/USDT... da bi
+    loai het qua bo loc market cap (config.exclude_top_rank/max_market_cap)
+    truoc khi toi day, nen dieu kien USD tuyet doi khong con gay nhieu nhu
+    truoc nua - an toan de bat OR cho ca 2 dieu kien.
+    """
     if alert.usd_value >= config.min_usd_threshold:
         return True
+
+    ratio = alert.surge_ratio
+    if ratio is not None and ratio >= config.min_surge_ratio:
+        return True
+
     if alert.market_cap and alert.market_cap > 0:
         if (alert.usd_value / alert.market_cap) >= config.min_mcap_ratio:
             return True
