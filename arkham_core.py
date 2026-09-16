@@ -214,22 +214,15 @@ def fetch_market_cap_at_rank(rank: int) -> float | None:
 _symbol_resolve_cache: dict[str, str] = {}
 
 
-def resolve_token_id(query: str) -> str:
+def search_tokens(query: str, limit: int = 8) -> list[dict]:
     """
-    Nguoi dung go ticker (VD "BTC") hoac da go dung ID (VD "bitcoin") deu duoc.
-    Tra cuu qua CoinGecko Search API (mien phi) de doi ticker -> ID chuan,
-    uu tien coin co market cap rank thap nhat (tuc pho bien nhat) neu trung ten.
-    Ket qua duoc cache lai, chi tra cuu 1 lan cho moi tu khoa.
-    Neu tra cuu that bai (mat mang...) hoac khong tim thay: dung nguyen text
-    goc - van hoat dong binh thuong neu nguoi dung da go dung ID san.
+    Tim coin qua CoinGecko Search API (mien phi, khong can key).
+    Tra ve list {id, symbol, name, market_cap_rank}, sap xep coin pho bien
+    (market cap rank thap = lon) len truoc. Dung cho o tim kiem tren web UI.
     """
-    key = query.strip().lower()
-    if not key:
-        return query
-    if key in _symbol_resolve_cache:
-        return _symbol_resolve_cache[key]
-
-    resolved = query.strip()
+    query = query.strip()
+    if not query:
+        return []
     try:
         resp = requests.get(
             "https://api.coingecko.com/api/v3/search",
@@ -238,12 +231,39 @@ def resolve_token_id(query: str) -> str:
         )
         resp.raise_for_status()
         coins = resp.json().get("coins", [])
-        if coins:
-            coins.sort(key=lambda c: (c.get("market_cap_rank") is None, c.get("market_cap_rank", 10**9)))
-            resolved = coins[0].get("id", resolved)
-            log.info("Da tra cuu '%s' -> id '%s'", query, resolved)
+        coins.sort(key=lambda c: (c.get("market_cap_rank") is None, c.get("market_cap_rank", 10**9)))
+        return [
+            {
+                "id": c.get("id"),
+                "symbol": (c.get("symbol") or "").upper(),
+                "name": c.get("name"),
+                "market_cap_rank": c.get("market_cap_rank"),
+            }
+            for c in coins[:limit]
+        ]
     except requests.RequestException as e:
-        log.warning("Khong tra cuu duoc '%s' qua CoinGecko, dung nguyen text goc: %s", query, e)
+        log.warning("Tim kiem token '%s' that bai: %s", query, e)
+        return []
+
+
+def resolve_token_id(query: str) -> str:
+    """
+    Nguoi dung go ticker (VD "BTC") hoac da go dung ID (VD "bitcoin") deu duoc.
+    Tra cuu qua CoinGecko Search API de doi ticker -> ID chuan, uu tien coin
+    pho bien nhat neu trung ten. Ket qua duoc cache lai, chi tra cuu 1 lan
+    cho moi tu khoa. Neu tra cuu that bai/khong tim thay: dung nguyen text
+    goc - van hoat dong binh thuong neu nguoi dung da go dung ID san.
+    """
+    key = query.strip().lower()
+    if not key:
+        return query
+    if key in _symbol_resolve_cache:
+        return _symbol_resolve_cache[key]
+
+    results = search_tokens(query, limit=1)
+    resolved = results[0]["id"] if results else query.strip()
+    if results:
+        log.info("Da tra cuu '%s' -> id '%s'", query, resolved)
 
     _symbol_resolve_cache[key] = resolved
     return resolved

@@ -122,6 +122,14 @@ def api_alerts():
     return jsonify(items[:limit])
 
 
+@app.route("/api/search-token")
+def api_search_token():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([])
+    return jsonify(core.search_tokens(q))
+
+
 @app.route("/api/config", methods=["GET", "POST"])
 def api_config():
     if request.method == "POST":

@@ -9,13 +9,18 @@
 
   <div id="save-banner" class="save-banner" hidden></div>
 
-  <form id="settings-form" class="settings-form">
-    <div class="form-row">
-      <label for="watchlist">Watchlist — chỉ quét đúng các coin này (để trống = quét toàn thị trường)</label>
-      <textarea id="watchlist" name="watchlist" rows="3" placeholder="VD: BTC, POWER, AIN" style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
-      <span class="hint">Nhập <strong>mã ticker</strong> (VD "BTC", "POWER") hoặc ID token đầy đủ đều được, cách nhau bởi dấu phẩy — bot tự tra cứu ID chính xác qua CoinGecko. Nếu 1 mã trùng tên với nhiều coin, bot tự ưu tiên coin phổ biến nhất (market cap cao nhất) theo tên đó. Khi có watchlist, các ngưỡng "Loại trừ Top N"/"Market Cap" bên dưới sẽ <strong>không áp dụng</strong> — bot luôn quét đúng danh sách bạn chọn dù coin đó lớn hay nhỏ.</span>
+  <div class="watchlist-section">
+    <label>Watchlist — chỉ quét đúng các coin này (để trống = quét toàn thị trường)</label>
+    <div class="watchlist-search-row">
+      <input type="text" id="watchlist-search-input" placeholder="Gõ tên hoặc mã coin, VD: bitcoin, POWER..." autocomplete="off" />
+      <button type="button" class="btn btn-primary" id="watchlist-search-btn">Tìm</button>
     </div>
+    <div id="watchlist-search-results" class="watchlist-results" hidden></div>
+    <div id="watchlist-chips" class="watchlist-chips"></div>
+    <span class="hint">Tìm coin theo tên/mã, bấm vào kết quả để <strong>thêm ngay</strong> vào watchlist (tự lưu, không cần bấm Lưu cài đặt). Khi có watchlist, các ngưỡng "Loại trừ Top N"/"Market Cap" bên dưới sẽ <strong>không áp dụng</strong> — bot luôn quét đúng danh sách bạn chọn dù coin đó lớn hay nhỏ.</span>
+  </div>
 
+  <form id="settings-form" class="settings-form">
     <div class="form-row">
       <label for="timeframe">Khung thời gian xét dòng tiền</label>
       <select id="timeframe" name="timeframe">

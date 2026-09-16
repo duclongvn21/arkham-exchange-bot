@@ -161,9 +161,109 @@ const ExchangeFlowApp = (() => {
   // Settings
   // -------------------------------------------------------------------
 
+  let watchlistItems = []; // [{id, label}]
+
+  function renderWatchlistChips() {
+    const el = document.getElementById("watchlist-chips");
+    if (!el) return;
+    if (watchlistItems.length === 0) {
+      el.innerHTML = '<span class="hint">Chưa có coin nào trong watchlist — đang quét toàn thị trường.</span>';
+      return;
+    }
+    el.innerHTML = watchlistItems.map((item, idx) => `
+      <span class="watchlist-chip">
+        ${escapeHtml(item.label)}
+        <button type="button" data-idx="${idx}" title="Xóa khỏi watchlist">×</button>
+      </span>
+    `).join("");
+    el.querySelectorAll("button[data-idx]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        watchlistItems.splice(parseInt(btn.dataset.idx, 10), 1);
+        renderWatchlistChips();
+        saveWatchlist();
+      });
+    });
+  }
+
+  async function saveWatchlist() {
+    const watchlist = watchlistItems.map((item) => item.id).join(", ");
+    await fetchJSON("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ watchlist }),
+    });
+  }
+
+  function addToWatchlist(id, label) {
+    const exists = watchlistItems.some((item) => item.id.toLowerCase() === id.toLowerCase());
+    if (exists) return;
+    watchlistItems.push({ id, label });
+    renderWatchlistChips();
+    saveWatchlist();
+  }
+
+  async function runWatchlistSearch() {
+    const input = document.getElementById("watchlist-search-input");
+    const resultsEl = document.getElementById("watchlist-search-results");
+    const query = input.value.trim();
+    if (!query) {
+      resultsEl.hidden = true;
+      return;
+    }
+    let results;
+    try {
+      results = await fetchJSON(`/api/search-token?q=${encodeURIComponent(query)}`);
+    } catch (e) {
+      resultsEl.hidden = false;
+      resultsEl.innerHTML = `<div class="watchlist-result-empty">Lỗi tìm kiếm: ${escapeHtml(e.message)}</div>`;
+      return;
+    }
+    resultsEl.hidden = false;
+    if (results.length === 0) {
+      resultsEl.innerHTML = '<div class="watchlist-result-empty">Không tìm thấy coin nào khớp.</div>';
+      return;
+    }
+    resultsEl.innerHTML = results.map((r, idx) => `
+      <div class="watchlist-result-item" data-idx="${idx}">
+        <span><strong>${escapeHtml(r.symbol)}</strong><span class="wri-name">${escapeHtml(r.name)}</span></span>
+        <span class="wri-rank">${r.market_cap_rank ? "#" + r.market_cap_rank : ""}</span>
+      </div>
+    `).join("");
+    resultsEl.querySelectorAll(".watchlist-result-item").forEach((row, idx) => {
+      row.addEventListener("click", () => {
+        const r = results[idx];
+        addToWatchlist(r.id, `${r.symbol} ${r.name}`);
+        input.value = "";
+        resultsEl.hidden = true;
+      });
+    });
+  }
+
+  function initWatchlistSearch() {
+    document.getElementById("watchlist-search-btn").addEventListener("click", runWatchlistSearch);
+    const input = document.getElementById("watchlist-search-input");
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runWatchlistSearch();
+      }
+    });
+    document.addEventListener("click", (e) => {
+      const resultsEl = document.getElementById("watchlist-search-results");
+      if (resultsEl && !resultsEl.hidden && !e.target.closest(".watchlist-search-row") && !e.target.closest(".watchlist-results")) {
+        resultsEl.hidden = true;
+      }
+    });
+  }
+
   async function loadSettings() {
     const cfg = await fetchJSON("/api/config");
-    document.getElementById("watchlist").value = cfg.watchlist || "";
+    watchlistItems = (cfg.watchlist || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => ({ id: t, label: t }));
+    renderWatchlistChips();
     document.getElementById("timeframe").value = cfg.timeframe;
     document.getElementById("exclude_top_rank").value = cfg.exclude_top_rank;
     document.getElementById("max_market_cap").value = cfg.max_market_cap;
@@ -188,11 +288,11 @@ const ExchangeFlowApp = (() => {
 
   function initSettings() {
     loadSettings();
+    initWatchlistSearch();
 
     document.getElementById("settings-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const payload = {
-        watchlist: document.getElementById("watchlist").value,
         timeframe: document.getElementById("timeframe").value,
         exclude_top_rank: parseInt(document.getElementById("exclude_top_rank").value, 10) || 0,
         max_market_cap: parseFloat(document.getElementById("max_market_cap").value) || 0,
