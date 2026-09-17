@@ -51,7 +51,7 @@ const ExchangeFlowApp = (() => {
       : alerts.filter((a) => a.direction === currentFilter);
 
     if (filtered.length === 0) {
-      body.innerHTML = '<tr><td colspan="7" class="empty-row">Chưa có cảnh báo nào phù hợp bộ lọc.</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="empty-row">Chưa có cảnh báo nào phù hợp bộ lọc.</td></tr>';
       return;
     }
 
@@ -63,6 +63,11 @@ const ExchangeFlowApp = (() => {
       const surgeText = (a.surge_ratio != null)
         ? `<span style="color:var(--red)">+${(a.surge_ratio * 100).toFixed(0)}%</span> so kỳ trước`
         : "(token mới, không có kỳ trước)";
+      let netFlowText = "—";
+      if (a.net_flow_usd != null) {
+        const isOut = a.net_flow_usd >= 0;
+        netFlowText = `<span style="color:${isOut ? 'var(--green)' : 'var(--red)'}">${isOut ? '🟢 Ra' : '🔴 Vào'} ${fmtUsd(Math.abs(a.net_flow_usd))}</span>`;
+      }
       return `
         <tr data-idx="${idx}">
           <td title="${fmtTime(a.detected_at)}">${fmtRelative(a.detected_at)}</td>
@@ -70,6 +75,7 @@ const ExchangeFlowApp = (() => {
           <td><span class="badge ${badgeClass}">${badgeIcon} ${badgeText}</span></td>
           <td>${fmtUsd(a.usd_value)}</td>
           <td>${surgeText}</td>
+          <td>${netFlowText}</td>
           <td>${mcapPct}</td>
           <td>${escapeHtml(a.timeframe)}</td>
         </tr>
@@ -102,7 +108,7 @@ const ExchangeFlowApp = (() => {
 
   function renderCandlestickSVG(candles) {
     const svg = document.getElementById("coin-candlestick-chart");
-    const W = 900, H = 280, padY = 20;
+    const W = 900, H = 220, padY = 20;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.innerHTML = "";
 
@@ -137,6 +143,37 @@ const ExchangeFlowApp = (() => {
     svg.innerHTML = svgContent;
   }
 
+  function renderFlowBarChart(series) {
+    const svg = document.getElementById("coin-flow-chart");
+    const W = 900, H = 180;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.innerHTML = "";
+
+    if (!series || series.length === 0) {
+      svg.innerHTML = `<text x="${W/2}" y="${H/2}" fill="#8b92a3" font-size="13" text-anchor="middle">Không có dữ liệu (chỉ hỗ trợ coin trong Watchlist)</text>`;
+      return;
+    }
+
+    // net = outUSD - inUSD moi moc (duong = ra san nhieu hon, am = vao san nhieu hon)
+    const nets = series.map((b) => (Number(b.outUSD) || 0) - (Number(b.inUSD) || 0));
+    const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
+    const midY = H / 2;
+    const n = nets.length;
+    const slot = W / n;
+    const barW = Math.max(1, slot * 0.7);
+
+    let svgContent = `<line x1="0" y1="${midY}" x2="${W}" y2="${midY}" stroke="#262b36" stroke-width="1" />`;
+    nets.forEach((v, i) => {
+      const x = i * slot + slot / 2;
+      const barH = (Math.abs(v) / maxAbs) * (midY - 10);
+      const isOut = v >= 0;
+      const color = isOut ? "#4caf7d" : "#ef5350";
+      const y = isOut ? midY - barH : midY;
+      svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, barH)}" fill="${color}" />`;
+    });
+    svg.innerHTML = svgContent;
+  }
+
   function renderCoinInfo(alert) {
     const el = document.getElementById("coin-modal-info");
     const directionLabel = alert.direction === "inflow" ? "🔴 Nạp vào sàn" : "🟢 Rút khỏi sàn";
@@ -154,27 +191,41 @@ const ExchangeFlowApp = (() => {
     const overlay = document.getElementById("coin-modal-overlay");
     const title = document.getElementById("coin-modal-title");
     const statusEl = document.getElementById("coin-chart-status");
+    const flowStatusEl = document.getElementById("coin-flow-status");
 
     title.textContent = `${alert.symbol} · ${alert.name || ""}`;
     renderCoinInfo(alert);
     renderCandlestickSVG([]);
+    renderFlowBarChart([]);
     statusEl.textContent = "Đang tải biểu đồ giá...";
+    flowStatusEl.textContent = "Đang tải dữ liệu dòng tiền...";
     overlay.hidden = false;
 
     const mySeq = ++coinModalSeq;
+
+    // alert.name la CoinGecko-style id (VD "bitcoin", "lobster-2") Arkham tra ve
     try {
-      // alert.name la CoinGecko-style id (VD "bitcoin", "lobster-2") Arkham tra ve
       const candles = await fetchJSON(`/api/token-ohlc?id=${encodeURIComponent(alert.name)}&days=7`);
       if (mySeq !== coinModalSeq) return; // da mo coin khac trong luc cho
-      if (!candles || candles.length === 0) {
-        statusEl.textContent = "Không lấy được dữ liệu biểu đồ giá cho token này (CoinGecko không có dữ liệu hoặc ID không khớp).";
-      } else {
-        statusEl.textContent = "";
-      }
+      statusEl.textContent = (!candles || candles.length === 0)
+        ? "Không lấy được dữ liệu biểu đồ giá cho token này (CoinGecko không có dữ liệu hoặc ID không khớp)."
+        : "";
       renderCandlestickSVG(candles);
     } catch (e) {
       if (mySeq !== coinModalSeq) return;
       statusEl.textContent = "Lỗi tải biểu đồ: " + e.message;
+    }
+
+    try {
+      const series = await fetchJSON(`/api/token-flow-history?id=${encodeURIComponent(alert.name)}`);
+      if (mySeq !== coinModalSeq) return;
+      flowStatusEl.textContent = (!series || series.length === 0)
+        ? "Không có dữ liệu dòng tiền lịch sử (chỉ hỗ trợ coin trong Watchlist)."
+        : `${series.length} mốc dữ liệu gần nhất.`;
+      renderFlowBarChart(series);
+    } catch (e) {
+      if (mySeq !== coinModalSeq) return;
+      flowStatusEl.textContent = "Lỗi tải dữ liệu dòng tiền: " + e.message;
     }
   }
 

@@ -180,6 +180,23 @@ def api_token_ohlc():
     return jsonify(core.fetch_token_ohlc(coin_id, days_int))
 
 
+@app.route("/api/token-flow-history")
+def api_token_flow_history():
+    """
+    Lich su dong tien vao/ra san theo thoi gian cho 1 token (dung ve bieu do
+    cot xanh/do). Chi hoat dong dung cho token co du lieu tu /token/volume
+    (thuong la token trong Watchlist) - tra ve rong neu khong co.
+    """
+    coin_id = request.args.get("id", "").strip()
+    if not coin_id:
+        return jsonify([])
+    data = core.fetch_token_volume(coin_id)
+    if not isinstance(data, list):
+        return jsonify([])
+    sorted_data = sorted(data, key=lambda b: b.get("time") or "")
+    return jsonify(sorted_data[-60:])  # 60 moc gan nhat, du de ve bieu do gon
+
+
 @app.route("/api/search-token")
 def api_search_token():
     q = request.args.get("q", "").strip()

@@ -48,12 +48,13 @@
         <th>Chiều</th>
         <th>Giá trị (USD)</th>
         <th>So với kỳ trước</th>
+        <th>Dòng ròng</th>
         <th>% Market Cap</th>
         <th>Khung giờ</th>
       </tr>
     </thead>
     <tbody id="alerts-body">
-      <tr><td colspan="7" class="empty-row">Đang tải dữ liệu...</td></tr>
+      <tr><td colspan="8" class="empty-row">Đang tải dữ liệu...</td></tr>
     </tbody>
   </table>
 </div>
@@ -66,8 +67,18 @@
     </div>
     <div class="modal-body">
       <div class="coin-detail-row" id="coin-modal-info"></div>
-      <div id="coin-chart-status" class="hint" style="padding: 8px 0;"></div>
-      <svg id="coin-candlestick-chart" width="100%" height="280" viewBox="0 0 900 280" preserveAspectRatio="none"></svg>
+
+      <div class="coin-chart-label">Biểu đồ giá (nến, 7 ngày)</div>
+      <div id="coin-chart-status" class="hint" style="padding: 4px 0 8px;"></div>
+      <svg id="coin-candlestick-chart" width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none"></svg>
+
+      <div class="coin-chart-label" style="margin-top:18px;">Dòng tiền vào/ra sàn theo thời gian</div>
+      <div id="coin-flow-status" class="hint" style="padding: 4px 0 8px;"></div>
+      <svg id="coin-flow-chart" width="100%" height="180" viewBox="0 0 900 180" preserveAspectRatio="none"></svg>
+      <div class="coin-flow-legend">
+        <span><span class="legend-dot" style="background:#4caf7d"></span> Ròng ra khỏi sàn (tích cực)</span>
+        <span><span class="legend-dot" style="background:#ef5350"></span> Ròng vào sàn (cần chú ý)</span>
+      </div>
     </div>
   </div>
 </div>

@@ -163,6 +163,10 @@ class FlowAlert:
     previous_usd_value: float | None
     market_cap: float | None
     timeframe: str
+    # Dong rong = outflow - inflow CUNG mot ky (duong = tien dang chay RA
+    # khoi san nhieu hon, am = dang chay VAO san nhieu hon). None neu khong
+    # co du lieu ca 2 chieu cung luc (VD che do quet toan thi truong).
+    net_flow_usd: float | None = None
     detected_at: float = field(default_factory=time.time)
 
     @property
@@ -180,6 +184,7 @@ class FlowAlert:
             "usd_value": self.usd_value,
             "previous_usd_value": self.previous_usd_value,
             "surge_ratio": self.surge_ratio,
+            "net_flow_usd": self.net_flow_usd,
             "market_cap": self.market_cap,
             "timeframe": self.timeframe,
             "detected_at": self.detected_at,
@@ -406,12 +411,17 @@ def parse_token_volume_series(data, token_id: str, direction: str) -> FlowAlert 
         return None
     prev_value = previous.get(field) if previous else None
 
+    net_flow_usd = None
+    if current.get("outUSD") is not None and current.get("inUSD") is not None:
+        net_flow_usd = float(current["outUSD"]) - float(current["inUSD"])
+
     return FlowAlert(
         symbol=token_id.upper(),
         name=token_id,
         direction=direction,
         usd_value=abs(float(usd_value)),
         previous_usd_value=float(prev_value) if prev_value is not None else None,
+        net_flow_usd=net_flow_usd,
         market_cap=None,  # endpoint nay khong tra ve market cap
         timeframe=config.timeframe,
     )
