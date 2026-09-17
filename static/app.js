@@ -117,12 +117,21 @@ const ExchangeFlowApp = (() => {
     return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
   }
 
-  function buildAxisLabels(n, slot, y, getLabel, maxLabels = 6) {
+  function formatFullDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  function buildAxisLabels(n, slot, y, getLabel, maxLabels = 6, rotate = false) {
     const step = Math.max(1, Math.floor(n / maxLabels));
     let svgContent = "";
     for (let i = 0; i < n; i += step) {
       const x = i * slot + slot / 2;
-      svgContent += `<text x="${x}" y="${y}" fill="#8b92a3" font-size="9" text-anchor="middle">${getLabel(i)}</text>`;
+      if (rotate) {
+        svgContent += `<text x="${x}" y="${y}" fill="#8b92a3" font-size="9" text-anchor="end" transform="rotate(-40 ${x} ${y})">${getLabel(i)}</text>`;
+      } else {
+        svgContent += `<text x="${x}" y="${y}" fill="#8b92a3" font-size="9" text-anchor="middle">${getLabel(i)}</text>`;
+      }
     }
     return svgContent;
   }
@@ -178,9 +187,11 @@ const ExchangeFlowApp = (() => {
     }
 
     // net = outUSD - inUSD moi moc (duong = ra san nhieu hon, am = vao san nhieu hon)
+    // Moi moc la du lieu THUC TE theo NGAY (Arkham /token/volume tra ve bucket
+    // theo tung ngay day du, khong phai gia lap/noi suy).
     const nets = series.map((b) => (Number(b.outUSD) || 0) - (Number(b.inUSD) || 0));
     const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
-    const padBottom = 18;
+    const padBottom = 34; // du cho nhan ngay xoay nghieng
     const plotH = H - padBottom;
     const midY = plotH / 2;
     const n = nets.length;
@@ -194,9 +205,12 @@ const ExchangeFlowApp = (() => {
       const isOut = v >= 0;
       const color = isOut ? "#4caf7d" : "#ef5350";
       const y = isOut ? midY - barH : midY;
-      svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, barH)}" fill="${color}" />`;
+      const label = `${formatFullDate(series[i].time)}: ${isOut ? "ròng ra" : "ròng vào"} ${fmtUsdCompact(Math.abs(v))}`;
+      svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, barH)}" fill="${color}"><title>${label}</title></rect>`;
     });
-    svgContent += buildAxisLabels(n, slot, H - 4, (i) => formatAxisDate(series[i].time));
+    // Hien nhieu nhan ngay hon (toi da 15, thay vi 6) va xoay nghieng de doc ro,
+    // khong bi chong chu khi co nhieu moc du lieu theo ngay.
+    svgContent += buildAxisLabels(n, slot, H - 4, (i) => formatAxisDate(series[i].time), 15, true);
     svg.innerHTML = svgContent;
   }
 
@@ -247,7 +261,7 @@ const ExchangeFlowApp = (() => {
       if (mySeq !== coinModalSeq) return;
       flowStatusEl.textContent = (!series || series.length === 0)
         ? "Không có dữ liệu dòng tiền lịch sử (chỉ hỗ trợ coin trong Watchlist)."
-        : `${series.length} mốc dữ liệu gần nhất.`;
+        : `${series.length} ngày gần nhất (mỗi cột = dữ liệu thực tế của đúng 1 ngày). Di chuột vào từng cột để xem ngày và giá trị chính xác.`;
       renderFlowBarChart(series);
     } catch (e) {
       if (mySeq !== coinModalSeq) return;
