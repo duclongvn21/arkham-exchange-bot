@@ -106,9 +106,30 @@ const ExchangeFlowApp = (() => {
     return "$" + n.toPrecision(4);
   }
 
+  function formatAxisDateTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })
+      + " " + d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function formatAxisDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+  }
+
+  function buildAxisLabels(n, slot, y, getLabel, maxLabels = 6) {
+    const step = Math.max(1, Math.floor(n / maxLabels));
+    let svgContent = "";
+    for (let i = 0; i < n; i += step) {
+      const x = i * slot + slot / 2;
+      svgContent += `<text x="${x}" y="${y}" fill="#8b92a3" font-size="9" text-anchor="middle">${getLabel(i)}</text>`;
+    }
+    return svgContent;
+  }
+
   function renderCandlestickSVG(candles) {
     const svg = document.getElementById("coin-candlestick-chart");
-    const W = 900, H = 220, padY = 20;
+    const W = 900, H = 220, padTop = 14, padBottom = 22;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.innerHTML = "";
 
@@ -121,7 +142,8 @@ const ExchangeFlowApp = (() => {
     const lows = candles.map((c) => c[3]);
     let minP = Math.min(...lows), maxP = Math.max(...highs);
     if (minP === maxP) { minP *= 0.98; maxP *= 1.02; }
-    const scaleY = (p) => H - padY - ((p - minP) / (maxP - minP)) * (H - padY * 2);
+    const plotH = H - padTop - padBottom;
+    const scaleY = (p) => padTop + plotH - ((p - minP) / (maxP - minP)) * plotH;
 
     const n = candles.length;
     const slot = W / n;
@@ -140,6 +162,7 @@ const ExchangeFlowApp = (() => {
       svgContent += `<line x1="${x}" y1="${yHigh}" x2="${x}" y2="${yLow}" stroke="${color}" stroke-width="1" />`;
       svgContent += `<rect x="${x - bodyW/2}" y="${yTop}" width="${bodyW}" height="${bodyH}" fill="${color}" />`;
     });
+    svgContent += buildAxisLabels(n, slot, H - 6, (i) => formatAxisDateTime(candles[i][0]));
     svg.innerHTML = svgContent;
   }
 
@@ -157,7 +180,9 @@ const ExchangeFlowApp = (() => {
     // net = outUSD - inUSD moi moc (duong = ra san nhieu hon, am = vao san nhieu hon)
     const nets = series.map((b) => (Number(b.outUSD) || 0) - (Number(b.inUSD) || 0));
     const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
-    const midY = H / 2;
+    const padBottom = 18;
+    const plotH = H - padBottom;
+    const midY = plotH / 2;
     const n = nets.length;
     const slot = W / n;
     const barW = Math.max(1, slot * 0.7);
@@ -171,6 +196,7 @@ const ExchangeFlowApp = (() => {
       const y = isOut ? midY - barH : midY;
       svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, barH)}" fill="${color}" />`;
     });
+    svgContent += buildAxisLabels(n, slot, H - 4, (i) => formatAxisDate(series[i].time));
     svg.innerHTML = svgContent;
   }
 
