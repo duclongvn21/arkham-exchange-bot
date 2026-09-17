@@ -191,7 +191,7 @@ const ExchangeFlowApp = (() => {
     // theo tung ngay day du, khong phai gia lap/noi suy).
     const nets = series.map((b) => (Number(b.outUSD) || 0) - (Number(b.inUSD) || 0));
     const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
-    const padBottom = 34; // du cho nhan ngay xoay nghieng
+    const padBottom = 20; // du cho nhan ngay nam ngang
     const plotH = H - padBottom;
     const midY = plotH / 2;
     const n = nets.length;
@@ -208,9 +208,10 @@ const ExchangeFlowApp = (() => {
       const label = `${formatFullDate(series[i].time)}: ${isOut ? "ròng ra" : "ròng vào"} ${fmtUsdCompact(Math.abs(v))}`;
       svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, barH)}" fill="${color}"><title>${label}</title></rect>`;
     });
-    // Hien nhieu nhan ngay hon (toi da 15, thay vi 6) va xoay nghieng de doc ro,
-    // khong bi chong chu khi co nhieu moc du lieu theo ngay.
-    svgContent += buildAxisLabels(n, slot, H - 4, (i) => formatAxisDate(series[i].time), 15, true);
+    // Hien nhieu nhan ngay hon (toi da 15, thay vi 6), nam ngang (KHONG xoay -
+    // xoay nghieng tung bi trinh duyet cat mat mot phan chu do tran ra ngoai
+    // canh duoi cua khung SVG, da xac nhan qua thuc te nguoi dung bao loi).
+    svgContent += buildAxisLabels(n, slot, H - 6, (i) => formatAxisDate(series[i].time), 15, false);
     svg.innerHTML = svgContent;
   }
 
