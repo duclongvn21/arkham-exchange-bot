@@ -363,10 +363,23 @@ def fetch_token_volume(token_id: str, debug: bool = False) -> dict | None:
     granularity_map = {"1h": "1h", "6h": "1h", "12h": "1h", "24h": "1h", "7d": "24h"}
     granularity = granularity_map.get(config.timeframe, "1h")
 
+    # Thu nghiem: gioi han khoang thoi gian truy van (72h gan nhat) bang
+    # timeGte/timeLte (mili-giay). Gia thuyet: Arkham tu ep bucket ve theo
+    # ngay khi khong gioi han khoang thoi gian (mac dinh lay toan bo lich su
+    # nen phai gop tho de tra ve so luong bucket hop ly) - neu gioi han
+    # khoang thoi gian lai gan, may co tra ve bucket gio thay vi ngay.
+    now_ms = int(time.time() * 1000)
+    time_gte_ms = now_ms - 72 * 60 * 60 * 1000
+
     try:
         data = arkham_get(
             f"/token/volume/{token_id}",
-            {"timeframe": config.timeframe, "granularity": granularity},
+            {
+                "timeframe": config.timeframe,
+                "granularity": granularity,
+                "timeGte": time_gte_ms,
+                "timeLte": now_ms,
+            },
         )
     except requests.HTTPError:
         return None
