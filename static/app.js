@@ -122,11 +122,23 @@ const ExchangeFlowApp = (() => {
     return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   }
 
-  function buildAxisLabels(n, slot, y, getLabel, maxLabels = 6, rotate = false) {
+  // Lam tron len thanh "so dep" (1/2/5 x 10^n) de dung lam moc truc gia tri -
+  // VD 137000 -> 200000, 4200 -> 5000. Giup nguoi xem uoc luong thang do
+  // ma khong can di chuot vao tung cot.
+  function roundNiceUp(v) {
+    if (!(v > 0)) return 1;
+    const exp = Math.floor(Math.log10(v));
+    const base = Math.pow(10, exp);
+    const norm = v / base;
+    const niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return niceNorm * base;
+  }
+
+  function buildAxisLabels(n, slot, y, getLabel, maxLabels = 6, rotate = false, padLeft = 0) {
     const step = Math.max(1, Math.floor(n / maxLabels));
     let svgContent = "";
     for (let i = 0; i < n; i += step) {
-      const x = i * slot + slot / 2;
+      const x = padLeft + i * slot + slot / 2;
       if (rotate) {
         svgContent += `<text x="${x}" y="${y}" fill="#8b92a3" font-size="9" text-anchor="end" transform="rotate(-40 ${x} ${y})">${getLabel(i)}</text>`;
       } else {
@@ -191,27 +203,66 @@ const ExchangeFlowApp = (() => {
     // theo tung ngay day du, khong phai gia lap/noi suy).
     const nets = series.map((b) => (Number(b.outUSD) || 0) - (Number(b.inUSD) || 0));
     const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
-    const padBottom = 20; // du cho nhan ngay nam ngang
+    // Lam tron len thang gia tri de co moc truc "$" de doc, tranh viec 1 ngay
+    // dot bien lam cac ngay con lai bep xuong thanh vach mong khong thay ro.
+    const niceMax = roundNiceUp(maxAbs);
+
+    const padLeft = 44;  // cho nhan truc gia tri (VD "$500K") ben trai
+    const padBottom = 20; // cho nhan ngay nam ngang
+    const plotW = W - padLeft;
     const plotH = H - padBottom;
     const midY = plotH / 2;
+    const halfSpan = midY - 10;
     const n = nets.length;
-    const slot = W / n;
-    const barW = Math.max(1, slot * 0.7);
+    const slot = plotW / n;
+    const barW = Math.max(2, Math.min(24, slot * 0.7));
+    const MIN_BAR_H = 2; // gia tri du nho van hien ro thanh 1 vach mau, khong bien mat
 
-    let svgContent = `<line x1="0" y1="${midY}" x2="${W}" y2="${midY}" stroke="#262b36" stroke-width="1" />`;
+    let peakIdx = 0;
+    nets.forEach((v, i) => { if (Math.abs(v) > Math.abs(nets[peakIdx])) peakIdx = i; });
+
+    let svgContent = "";
+    // Luoi tham chieu: 0 (duong day), +niceMax va -niceMax (duong mo, kem nhan $)
+    const gridY = [
+      { y: 10, value: niceMax },
+      { y: midY, value: 0 },
+      { y: plotH - 10, value: -niceMax },
+    ];
+    gridY.forEach(({ y, value }) => {
+      const strokeOpacity = value === 0 ? "1" : "0.6";
+      svgContent += `<line x1="${padLeft}" y1="${y}" x2="${W}" y2="${y}" stroke="#262b36" stroke-width="1" stroke-opacity="${strokeOpacity}" />`;
+      const labelText = value === 0 ? "$0" : (value > 0 ? "+" : "-") + fmtUsdCompact(Math.abs(value));
+      svgContent += `<text x="${padLeft - 6}" y="${y + 3}" fill="#8b92a3" font-size="9" text-anchor="end">${labelText}</text>`;
+    });
+
     nets.forEach((v, i) => {
-      const x = i * slot + slot / 2;
-      const barH = (Math.abs(v) / maxAbs) * (midY - 10);
+      const x = padLeft + i * slot + slot / 2;
+      // Thang do nen can bac hai (khong phai tuyen tinh): neu 1 ngay dot bien
+      // lon gap hang tram lan cac ngay con lai, ty le tuyen tinh se ep het
+      // cac ngay binh thuong xuong sat vach 0 (khong thay duoc gi). Can bac
+      // hai giu dung thu tu lon nho nhung nen bot chenh lech cuc doan, nen
+      // ngay nho van hien ro thanh cot co the phan biet duoc. Gia tri chinh
+      // xac (khong bi nen) luon xem duoc qua tooltip khi di chuot vao cot.
+      const ratio = Math.max(0, Math.abs(v) / niceMax);
+      const rawH = Math.sqrt(ratio) * halfSpan;
+      const barH = Math.max(MIN_BAR_H, rawH);
       const isOut = v >= 0;
       const color = isOut ? "#4caf7d" : "#ef5350";
       const y = isOut ? midY - barH : midY;
       const label = `${formatFullDate(series[i].time)}: ${isOut ? "ròng ra" : "ròng vào"} ${fmtUsdCompact(Math.abs(v))}`;
-      svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, barH)}" fill="${color}"><title>${label}</title></rect>`;
+      svgContent += `<rect x="${x - barW/2}" y="${y}" width="${barW}" height="${barH}" rx="1.5" fill="${color}"><title>${label}</title></rect>`;
+      // Nhan truc tiep gia tri tai dinh cot lon nhat - giup thay ngay tai sao
+      // thang do bi keo gian, khong can di chuot moi biet.
+      if (i === peakIdx) {
+        const labelY = isOut ? y - 5 : y + barH + 11;
+        svgContent += `<text x="${x}" y="${labelY}" fill="#e6e8ec" font-size="10" font-weight="600" text-anchor="middle">${fmtUsdCompact(Math.abs(v))}</text>`;
+      }
     });
+
     // Hien nhieu nhan ngay hon (toi da 15, thay vi 6), nam ngang (KHONG xoay -
     // xoay nghieng tung bi trinh duyet cat mat mot phan chu do tran ra ngoai
     // canh duoi cua khung SVG, da xac nhan qua thuc te nguoi dung bao loi).
-    svgContent += buildAxisLabels(n, slot, H - 6, (i) => formatAxisDate(series[i].time), 15, false);
+    svgContent += buildAxisLabels(n, slot, H - 6, (i) => formatAxisDate(series[i].time), 15, false, padLeft);
     svg.innerHTML = svgContent;
   }
 
@@ -262,7 +313,7 @@ const ExchangeFlowApp = (() => {
       if (mySeq !== coinModalSeq) return;
       flowStatusEl.textContent = (!series || series.length === 0)
         ? "Không có dữ liệu dòng tiền lịch sử (chỉ hỗ trợ coin trong Watchlist)."
-        : `${series.length} ngày gần nhất (mỗi cột = dữ liệu thực tế của đúng 1 ngày). Di chuột vào từng cột để xem ngày và giá trị chính xác.`;
+        : `${series.length} ngày gần nhất (mỗi cột = dữ liệu thực tế của đúng 1 ngày). Thang đo đã được nén để ngày nhỏ vẫn nhìn rõ - di chuột vào từng cột để xem giá trị $ chính xác (không nén).`;
       renderFlowBarChart(series);
     } catch (e) {
       if (mySeq !== coinModalSeq) return;
